@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: #f4f6f8;
+  color: #1b2530;
+}
+
+/* Wavesurfer cursors/regions inherit a slightly rounded look */
+#waveform-container {
+  user-select: none;
+}

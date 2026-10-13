@@ -1,0 +1,33 @@
+# --- Python / backend ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+*.log
+
+# --- Local data (recordings, progress, generated audio) — NEVER commit ---
+data/
+
+# --- Model caches / large binaries (download separately) ---
+*.gguf
+*.onnx
+*.pt
+*.bin
+*.safetensors
+
+# --- Environment ---
+.env
+.env.local
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
