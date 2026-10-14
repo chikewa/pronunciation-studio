@@ -30,6 +30,10 @@ runs on your computer; your recordings never leave it.**
 
 ```
 pronunciation-studio/
+├── docker-compose.yml             # one-command deploy (backend + frontend)
+├── Dockerfile                     # backend image (python 3.11, CPU torch)
+├── Dockerfile.frontend            # frontend image (node build + nginx)
+├── docker/nginx.conf              # SPA + /api proxy (single origin)
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                  # FastAPI app + endpoints
@@ -51,7 +55,10 @@ pronunciation-studio/
 │       │                            # PhonemeTable, Recorder, LessonView, ...
 │       ├── hooks/useRecorder.ts     # MediaRecorder + Web Audio
 │       └── api.ts                   # typed client
-├── scripts/download_models.py       # one-time model download
+├── scripts/
+│   ├── download_models.py         # one-time model download (respects HF_HOME)
+│   ├── entrypoint.sh              # container entrypoint (model bootstrap)
+│   └── publish_github.sh          # helper used to publish this repo
 ├── data/                            # your data (git-ignored)
 └── .env.example
 ```
@@ -114,6 +121,33 @@ Model code: **OpenPronounce** (MIT), **Piper** (MIT), **praat-parselmouth**
 ---
 
 ## Running
+
+### Option A — Docker (recommended, one command)
+
+```bash
+git clone https://github.com/chikewa/pronunciation-studio.git
+cd pronunciation-studio
+docker compose up -d --build
+```
+
+- **First start** downloads ~2.5 GB of models into the `hf_models` volume
+  (needs internet that one time). The backend reports `starting` until the
+  download + model check finish; watch with `docker compose logs -f backend`.
+- From then on the stack runs **fully offline**.
+- **UI:** http://localhost:8085 (nginx serves the built frontend and proxies
+  `/api` to the backend, so everything is on one origin — no CORS issues).
+- **API (direct):** http://127.0.0.1:8000/api/health
+- **Your data** lives in named volumes: `hf_models` (model cache) and
+  `app_data` (recordings, progress, generated references). Delete both
+  volumes to reset: `docker compose down -v`.
+- The backend port is bound to `127.0.0.1` only by default — keep it that way
+  unless you put the stack behind your own TLS proxy (mic input additionally
+  requires HTTPS or `localhost`).
+- **GPU (optional):** install the NVIDIA Container Toolkit, uncomment the
+  `deploy` block in `docker-compose.yml`, and switch the image to a CUDA torch
+  build with `OPENPRONOUNCE_DEVICE=cuda`.
+
+### Option B — local Python / Node
 
 **Backend** (terminal 1):
 ```bash

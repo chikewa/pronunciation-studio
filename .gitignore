@@ -31,3 +31,8 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+
+# tsc build-info / compiled config (tsc -b artifacts)
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

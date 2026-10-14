@@ -1,0 +1,14 @@
+# Keep the Docker build context lean (the repo root is the context for both
+# Dockerfiles).
+.git
+.gitignore
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+data
+backend/.pytest_cache
+frontend/node_modules
+frontend/dist
+*.log
+.env

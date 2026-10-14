@@ -37,7 +37,11 @@ export default function HomeView({ onLessons, onProgress }: Props) {
   }
   if (!health) return <p className="text-sm text-ink-400">Checking status…</p>
 
-  const allReady = health.models.every((m) => m.notes?.startsWith('installed=True'))
+  // A model counts as ready when it is loaded AND either reports installed
+  // weights or needs no weights at all (pure libraries like librosa/Praat).
+  const isReady = (m: Health['models'][number]) =>
+    m.loaded && (m.notes?.includes('installed=True') || m.notes?.includes('no weights'))
+  const allReady = health.models.every(isReady)
 
   return (
     <div className="space-y-6">
@@ -75,7 +79,7 @@ export default function HomeView({ onLessons, onProgress }: Props) {
           {health.models.map((m) => (
             <div key={m.name} className="flex items-start gap-3 rounded border border-ink-100 p-3">
               <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                m.notes?.startsWith('installed=True') ? 'bg-good-500' : 'bg-bad-500'}`} />
+                isReady(m) ? 'bg-good-500' : 'bg-bad-500'}`} />
               <div>
                 <p className="text-sm font-medium text-ink-800">{m.name}</p>
                 <p className="text-xs text-ink-500">{m.role}</p>

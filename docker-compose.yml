@@ -1,0 +1,63 @@
+# Pronunciation Studio — one-command deploy.
+#
+#   docker compose up -d --build
+#
+# First start downloads ~2.5 GB of models into the `hf_models` volume (needs
+# internet that one time); afterwards everything runs fully offline.
+#
+#   UI:        http://localhost:8085
+#   API:       http://localhost:8000/api/health   (direct backend, for testing)
+#   Data:      volumes `hf_models` (models) and `app_data` (your recordings/progress)
+#
+# GPU (optional): if you have an NVIDIA GPU, install the NVIDIA Container
+# Toolkit, add the deploy block below to `backend`, and set
+# OPENPRONOUNCE_DEVICE=cuda with a CUDA torch build.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pronunciation-studio-backend:latest
+    container_name: pron-backend
+    environment:
+      HF_HOME: /data/models/hf
+      PRON_DATA_DIR: /data/app
+      OPENPRONOUNCE_TTS: piper
+      OPENPRONOUNCE_TTS_VOICE: en_US-lessac-medium
+      OPENPRONOUNCE_DEVICE: cpu
+      # Add your browser origin here if you serve the UI from somewhere else.
+      PRON_CORS_ORIGINS: http://localhost:8085,http://127.0.0.1:8085
+    volumes:
+      - hf_models:/data/models
+      - app_data:/data/app
+    ports:
+      # Bind to localhost only; expose publicly behind your own TLS proxy if
+      # you want remote access (mic input requires HTTPS or localhost).
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: pronunciation-studio-frontend:latest
+    container_name: pron-frontend
+    depends_on:
+      - backend
+    ports:
+      # 8080 is commonly taken on homelab boxes (e.g. llama.cpp servers);
+      # 8085 is the default here. Change both sides if you need another port.
+      - "8085:80"
+    restart: unless-stopped
+
+volumes:
+  hf_models:
+  app_data:
