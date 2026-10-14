@@ -4,8 +4,9 @@ import HomeView from './components/HomeView'
 import LessonList from './components/LessonList'
 import LessonView from './components/LessonView'
 import ProgressView from './components/ProgressView'
+import SettingsView from './components/SettingsView'
 
-type View = 'home' | 'lessons' | 'lesson' | 'progress'
+type View = 'home' | 'lessons' | 'lesson' | 'progress' | 'settings'
 
 export default function App() {
   const [view, setView] = useState<View>('home')
@@ -16,6 +17,7 @@ export default function App() {
   const goLessons = useCallback(() => { setView('lessons'); setMenuOpen(false) }, [])
   const goProgress = useCallback(() => { setView('progress'); setMenuOpen(false) }, [])
   const goHome = useCallback(() => { setView('home'); setMenuOpen(false) }, [])
+  const goSettings = useCallback(() => { setView('settings'); setMenuOpen(false) }, [])
 
   // close mobile menu on navigation
   useEffect(() => { setMenuOpen(false) }, [view])
@@ -25,6 +27,7 @@ export default function App() {
       <NavItem active={view === 'home'} onClick={goHome} label="Home" icon="⌂" />
       <NavItem active={view === 'lessons' || view === 'lesson'} onClick={goLessons} label="Lessons" icon="📚" />
       <NavItem active={view === 'progress'} onClick={goProgress} label="Progress" icon="📈" />
+      <NavItem active={view === 'settings'} onClick={goSettings} label="Settings" icon="⚙️" />
     </nav>
   )
 
@@ -63,6 +66,7 @@ export default function App() {
             <LessonView key={activeLesson.id} lesson={activeLesson} onLessonList={goLessons} />
           )}
           {view === 'progress' && <ProgressView onLessons={goLessons} />}
+          {view === 'settings' && <SettingsView onLessons={goLessons} />}
         </main>
       </div>
     </div>
