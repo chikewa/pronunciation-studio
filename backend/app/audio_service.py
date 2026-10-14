@@ -204,10 +204,54 @@ def save_recording(raw: bytes, suffix: str = ".webm") -> tuple[str, Path]:
     return rid, path
 
 
+def trim_silence(wav: np.ndarray, sr: int,
+                 threshold: float | None = None,
+                 pad_s: float | None = None,
+                 min_keep_s: float = 0.3) -> tuple[np.ndarray, float, float]:
+    """Cut leading/trailing silence from a mono waveform (RMS based).
+
+    Returns (trimmed_wav, trimmed_s, removed_s). The threshold defaults to
+    ``settings.silence_rms_threshold`` (~ -40 dBFS) and a small pad
+    (``settings.trim_pad_s``) is kept at each edge so the result does not
+    start/end on a hard click.
+
+    Safety rules:
+      * never trims into the middle of the signal — only the edges
+      * if the trimmed result would be shorter than ``min_keep_s`` the
+        ORIGINAL is returned untouched (removing 0.0 s), so a fully silent or
+        very short clip can never be destroyed by the trim
+    """
+    thr = settings.silence_rms_threshold if threshold is None else threshold
+    pad = settings.trim_pad_s if pad_s is None else pad_s
+    n = wav.size
+    dur = n / sr if sr else 0.0
+    if n == 0:
+        return wav, 0.0, 0.0
+    pad_n = int(pad * sr)
+    frame = max(1, int(0.01 * sr))  # 10 ms frames — fine enough for edges
+    if n < frame:
+        return wav, dur, 0.0
+    usable = n // frame * frame
+    frames = wav[:usable].reshape(-1, frame)
+    frame_rms = np.sqrt(np.mean(frames ** 2, axis=1))
+    voiced = np.flatnonzero(frame_rms >= thr)
+    if voiced.size == 0:
+        return wav, dur, 0.0  # all silent — never trim a silent clip to nothing
+    start = max(0, int(voiced[0]) * frame - pad_n)
+    end = min(n, int(voiced[-1] + 1) * frame + pad_n)
+    trimmed = wav[start:end]
+    if len(trimmed) < min_keep_s * sr:
+        return wav, dur, 0.0  # too little left — keep the original
+    removed = (start / sr) + ((n - end) / sr)
+    return trimmed, len(trimmed) / sr, removed
+
+
 def working_copy(recording_id: str, suffix: str = ".wav") -> Path | None:
     """Create a normalised 16 kHz mono wav working copy for a saved recording.
 
-    The original is left untouched. Returns the path, or None if missing.
+    The original is left untouched. Leading/trailing silence is trimmed from
+    the working copy only (config: trim_silence). Returns the path, or None
+    if missing.
     """
     src = _find_recording(recording_id)
     if src is None:
@@ -216,6 +260,8 @@ def working_copy(recording_id: str, suffix: str = ".wav") -> Path | None:
         wav, _ = decode(src)
     except Exception:
         return None
+    if settings.trim_silence:
+        wav, _, _ = trim_silence(wav, settings.analysis_sample_rate)
     dst = settings.recordings_dir / f"{recording_id}_analysis{suffix}"
     sf.write(str(dst), wav, settings.analysis_sample_rate, subtype="PCM_16")
     return dst

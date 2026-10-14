@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
 import { AudioMeta, api } from '../api'
+import { trimSilence } from '../lib/trimSilence'
 
 interface Props {
   onRecording: (recordingId: string, meta: AudioMeta) => void
@@ -17,6 +18,7 @@ export default function Recorder({ onRecording, onClear, disabled }: Props) {
   const rec = useRecorder()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [trimNote, setTrimNote] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   // Keep a preview object URL in sync with the current blob (revoke the old).
@@ -31,9 +33,18 @@ export default function Recorder({ onRecording, onClear, disabled }: Props) {
 
   const handleSave = async () => {
     if (!rec.blob) return
-    setSaving(true); setSaveError(null)
+    setSaving(true); setSaveError(null); setTrimNote(null)
     try {
-      const res = await api.saveAudio(rec.blob, 'rec.webm')
+      // Cut the leading/trailing silence so the stored take (and the whole
+      // comparison pipeline) starts and ends on the actual speech.
+      const trimmed = await trimSilence(rec.blob)
+      const res = await api.saveAudio(
+        trimmed.blob, trimmed.trimmed ? 'rec_trimmed.wav' : 'rec.webm',
+      )
+      if (trimmed.trimmed) {
+        setTrimNote(`silence trimmed: ${trimmed.originalDurationS.toFixed(1)}s → ` +
+          `${trimmed.trimmedDurationS.toFixed(1)}s`)
+      }
       onRecording(res.recording_id, res.meta)
     } catch (e: any) {
       setSaveError(`Could not save the recording: ${e.message || e}`)
@@ -46,6 +57,7 @@ export default function Recorder({ onRecording, onClear, disabled }: Props) {
     rec.clear()
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
+    setTrimNote(null)
     onClear()
   }
 
@@ -109,7 +121,14 @@ export default function Recorder({ onRecording, onClear, disabled }: Props) {
 
       {rec.blob && previewUrl && !rec.isRecording && (
         <div className="mt-3">
-          <p className="mb-1 text-xs text-ink-500">Your take (play to check, or save to analyse):</p>
+          <p className="mb-1 flex items-center gap-2 text-xs text-ink-500">
+            Your take (play to check, or save to analyse):
+            {trimNote && (
+              <span className="rounded bg-accent-50 px-1.5 py-0.5 text-[11px] font-medium text-accent-700">
+                ✂ {trimNote}
+              </span>
+            )}
+          </p>
           <audio controls src={previewUrl} className="w-full" />
         </div>
       )}

@@ -96,3 +96,48 @@ def test_validate_audio_reports_stereo(stereo_wav):
     assert meta.ok is True
     assert meta.channels == 2
 
+
+def test_trim_silence_removes_edges(tmp_path):
+    """Silence at both ends of a tone must be cut; the middle stays."""
+    import numpy as np
+    import soundfile as sf
+    from app.audio_service import trim_silence, working_copy, save_recording
+
+    sr = 16000
+    tone = 0.5 * np.sin(2 * np.pi * 440 * np.arange(sr) / sr)  # 1 s tone
+    silence = np.zeros(int(0.5 * sr))                          # 0.5 s each side
+    wav = np.concatenate([silence, tone, silence])             # 2 s total
+    assert len(wav) == 2 * sr
+
+    trimmed, dur, removed = trim_silence(wav, sr)
+    # pad 0.08 s is kept at each edge -> 1.0 + 2*0.08 = 1.16 s, 0.84 s removed
+    assert dur == pytest.approx(1.16, abs=0.02)
+    assert removed == pytest.approx(0.84, abs=0.02)
+    # the tone itself survived: peak in the middle region is intact
+    mid = trimmed[len(trimmed) // 2 - sr // 8:len(trimmed) // 2 + sr // 8]
+    assert np.max(np.abs(mid)) > 0.4
+
+    # a fully silent clip must NOT be trimmed (safety rule)
+    s, d, r = trim_silence(np.zeros(sr), sr)
+    assert r == 0.0 and d == 1.0
+
+    # a clip shorter than min_keep_s after trimming keeps the original
+    short = np.concatenate([np.zeros(4 * sr), tone[: int(0.2 * sr)]])
+    s2, d2, r2 = trim_silence(short, sr)
+    assert r2 == 0.0  # 0.2 s result < 0.3 s min -> original kept
+
+    # working_copy applies the trim to the analysis file only
+    rid, p = save_recording(_wav_bytes(wav), ".wav")
+    dst = working_copy(rid)
+    assert dst is not None
+    out, _ = sf.read(str(dst))
+    assert len(out) / sr == pytest.approx(1.16, abs=0.05)
+
+
+def _wav_bytes(wav: "np.ndarray") -> bytes:
+    import io
+    import soundfile as sf
+    buf = io.BytesIO()
+    sf.write(buf, wav, 16000, subtype="PCM_16", format="WAV")
+    return buf.getvalue()
+

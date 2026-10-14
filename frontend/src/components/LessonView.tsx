@@ -239,6 +239,7 @@ export default function LessonView({ lesson, onLessonList }: Props) {
               data: result?.acoustics?.spectrogram ?? null,
               maxFreq: result?.acoustics?.spectrogram_max_freq_hz ?? 8000,
               source: result?.acoustics?.spectrogram_source ?? null,
+              durationS: result?.acoustics?.duration_s ?? null,
             }}
           />
         </section>

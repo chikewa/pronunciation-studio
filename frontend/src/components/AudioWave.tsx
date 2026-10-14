@@ -48,6 +48,8 @@ const AudioWave = forwardRef<AudioWaveHandle, Props>(({
   const [rate, setRate] = useState(1)
   const [region, setRegion] = useState<{ start: number; end: number } | null>(null)
   const [repeatRegion, setRepeatRegion] = useState(false)
+  const [zoom, setZoom] = useState(0)  // px per second; 0 = fit whole clip
+  const zoomRef = useRef(0)
   regionRef.current = region
   repeatRef.current = repeatRegion
 
@@ -64,6 +66,7 @@ const AudioWave = forwardRef<AudioWaveHandle, Props>(({
   const create = useCallback(async () => {
     if (!containerRef.current) return
     setError(null); setLoading(true)
+    setZoom(0); zoomRef.current = 0
     if (wsRef.current) { try { wsRef.current.destroy() } catch { /* */ } wsRef.current = null }
 
     const ws = WaveSurfer.create({
@@ -99,6 +102,8 @@ const AudioWave = forwardRef<AudioWaveHandle, Props>(({
       setError(typeof e === 'string' ? e : 'Could not load audio')
       setLoading(false)
     })
+    // re-apply the current zoom once the audio has decoded
+    ws.on('decode', () => { if (zoomRef.current > 0) ws.zoom(zoomRef.current) })
 
     if (regions) {
       const handle = (r: any) => setRegion({ start: r.start, end: r.end })
@@ -121,6 +126,19 @@ const AudioWave = forwardRef<AudioWaveHandle, Props>(({
   const setVol = (v: number) => { setVolume(v); wsRef.current?.setVolume(v) }
   const setRateBtn = (r: number) => { setRate(r); wsRef.current?.setPlaybackRate(r, true) }
 
+  // --- zoom (px per second of audio; 0 = fit the whole clip) -------------
+  const applyZoom = (z: number) => {
+    setZoom(z); zoomRef.current = z
+    const ws = wsRef.current
+    if (!ws) return
+    try { ws.zoom(z) } catch { /* audio not decoded yet; applied on 'decode' */ }
+  }
+  const zoomIn = () => applyZoom(Math.min(1600, (zoom || 0) * 2 || 200))
+  const zoomOut = () => {
+    const next = (zoom || 0) / 2
+    applyZoom(next < 40 ? 0 : Math.round(next))
+  }
+
   const fmt = (t: number) => {
     if (!isFinite(t) || t < 0) t = 0
     const m = Math.floor(t / 60), s = (t % 60).toFixed(1).padStart(4, '0')
@@ -139,13 +157,36 @@ const AudioWave = forwardRef<AudioWaveHandle, Props>(({
     <div className="rounded-lg border border-ink-200 bg-white p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">{label}</span>
-        {loading && <span className="text-xs text-ink-400">loading waveform…</span>}
-        {!loading && !compact && region && (
-          <span className="text-xs text-warn-700">region {fmt(region.start)}–{fmt(region.end)}</span>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && !error && (
+            <div className="flex items-center gap-0.5 rounded-md border border-ink-200 p-0.5">
+              <button onClick={zoomOut} aria-label={`Zoom out ${label}`}
+                className="rounded px-1.5 py-0.5 text-xs hover:bg-ink-100" title="Zoom out">
+                −
+              </button>
+              <span className="min-w-[3ch] text-center text-[11px] text-ink-500">
+                {zoom > 0 ? `${Math.round(zoom / 100) / 10}×` : 'fit'}
+              </span>
+              <button onClick={zoomIn} aria-label={`Zoom in ${label}`}
+                className="rounded px-1.5 py-0.5 text-xs hover:bg-ink-100" title="Zoom in">
+                +
+              </button>
+              {zoom > 0 && (
+                <button onClick={() => applyZoom(0)}
+                  className="rounded px-1.5 py-0.5 text-[11px] text-accent-700 hover:bg-ink-100" title="Fit whole clip">
+                  fit
+                </button>
+              )}
+            </div>
+          )}
+          {loading && <span className="text-xs text-ink-400">loading waveform…</span>}
+          {!loading && !compact && region && (
+            <span className="text-xs text-warn-700">region {fmt(region.start)}–{fmt(region.end)}</span>
+          )}
+        </div>
       </div>
 
-      <div ref={containerRef} className="w-full" />
+      <div ref={containerRef} className="w-full overflow-hidden" />
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}

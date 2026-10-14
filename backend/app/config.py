@@ -64,6 +64,11 @@ class Settings:
     silence_rms_threshold: float = 0.01  # ~ -40 dBFS
     low_rms_warn: float = 0.003          # ~ -50 dBFS, "too quiet to assess"
 
+    # silence trimming on user recordings (leading/trailing only)
+    trim_silence: bool = field(default_factory=lambda: _env_bool(
+        "PRON_TRIM_SILENCE", True))
+    trim_pad_s: float = 0.08             # keep this much silence at each edge
+
     # --- Models ------------------------------------------------------------
     # OpenPronounce model cache. Defaults to the standard HF cache so a prior
     # `scripts/download_models.py` run is reused without re-downloading.
