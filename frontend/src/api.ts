@@ -80,6 +80,10 @@ export interface AnalysisResult {
   word_error_rate: number | null
   transcription: string | null
   transcription_confidence: Confidence
+  /** words of the recogniser's transcription (same order as transcription_ipa) */
+  transcription_words: string[] | null
+  /** IPA per recognised word; null entry = token could not be phonemised */
+  transcription_ipa: (string | null)[] | null
   expected_phones: string[] | null
   heard_phones: string[] | null
   words: WordEval[]

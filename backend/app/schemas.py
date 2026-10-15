@@ -125,6 +125,11 @@ class AnalysisResult(BaseModel):
     # transcription (ASR) — what the word recognizer heard
     transcription: Optional[str] = None
     transcription_confidence: Confidence = Confidence.UNAVAILABLE
+    # IPA of what the recogniser heard: per-word IPA in the same order as
+    # ``transcription`` (None entries = that token could not be phonemised),
+    # plus the joined IPA string for convenient display.
+    transcription_words: Optional[list[str]] = None
+    transcription_ipa: Optional[list[str | None]] = None
 
     # phoneme / word level detail
     expected_phones: Optional[list[str]] = None

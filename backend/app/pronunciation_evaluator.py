@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import time
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -164,6 +165,73 @@ PHONEME_ADVICE: dict[str, dict[str, str]] = {
         "drill": "Minimal pair 'no / yo' (as in 'yell').",
     },
 }
+
+
+def _phonemize_words(words: list[str], lang: str) -> list[str | None]:
+    """IPA per word (in the SAME order). None for a word that cannot be
+    phonemised. Uses the exact espeak/phonemizer pipeline OpenPronounce uses
+    for expected phonemes, so the symbols match the rest of the result."""
+    if not words:
+        return []
+    try:
+        from openpronounce.languages import get_language
+        from phonemizer import phonemize
+        from phonemizer.separator import Separator
+        language = get_language(lang).espeak
+        out = phonemize(
+            " ".join(words),
+            language=language,
+            backend="espeak",
+            strip=True,
+            preserve_punctuation=False,
+            separator=Separator(phone=" ", word="|", syllable=""),
+        )
+        groups = [g.strip() for g in out.split("|")]
+        if len(groups) != len(words):
+            # batch miscounted (e.g. a word phonemised as empty); fall back
+            # to one call per word so order and length always line up.
+            per: list[str | None] = []
+            for w in words:
+                try:
+                    one = phonemize(
+                        w, language=language, backend="espeak", strip=True,
+                        preserve_punctuation=False,
+                        separator=Separator(phone=" ", word="", syllable=""),
+                    )
+                    per.append(one.strip() or None)
+                except Exception:  # noqa: BLE001
+                    per.append(None)
+            return per
+        return [g if g else None for g in groups]
+    except Exception:  # noqa: BLE001 - honest: IPA unknown, not a failure
+        return [None] * len(words)
+
+
+def transcription_with_ipa(text: str, lang: str = "en") -> tuple[list[str], list[str | None]]:
+    """Split a recogniser transcription into words and phonemise each one.
+
+    Returns ``(words, ipas)`` where ``ipas`` is aligned to ``words`` (None =
+    that token could not be phonemised, e.g. a non-word ASR hallucination).
+    This is what the "The model heard" panel shows: each recognised token with
+    the IPA of the sound the recogniser detected.
+    """
+    if not text or not text.strip():
+        return [], []
+    words = [w for w in re.findall(r"\b[\w']+\b", text) if w]
+    if not words:
+        return [], []
+    return words, _phonemize_words(words, lang)
+
+
+def text_to_ipa(text: str, lang: str = "en") -> str | None:
+    """Real IPA for a piece of text, joined per word (e.g. ``/k æ t/ /w ɜː l d/``).
+
+    Convenience wrapper over :func:`transcription_with_ipa`. Returns None when
+    nothing could be phonemised — callers treat that as "IPA unknown".
+    """
+    words, ipas = transcription_with_ipa(text, lang)
+    joined = [f"/{ipa}/" for ipa in ipas if ipa]
+    return " ".join(joined) if joined else None
 
 
 def _verdict_from_error(phone: dict, confidence: float) -> tuple[PhonemeVerdict, str | None]:
@@ -353,6 +421,14 @@ def analyze(
     result.transcription = raw.get("transcribe")
     if result.transcription:
         result.transcription_confidence = confidence if confidence != Confidence.UNAVAILABLE else Confidence.LOW
+        # IPA of what the recogniser actually heard, aligned word-by-word
+        try:
+            words, ipas = transcription_with_ipa(result.transcription, language)
+            if words:
+                result.transcription_words = words
+                result.transcription_ipa = ipas
+        except Exception:  # noqa: BLE001 - IPA is auxiliary; never fail the analysis
+            pass
 
     # OpenPronounce may return these as a flat list or as a per-word list of
     # lists. Normalise to a flat list[str] to keep the schema stable.

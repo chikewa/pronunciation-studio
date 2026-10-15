@@ -280,9 +280,25 @@ export default function LessonView({ lesson, onLessonList }: Props) {
                   <p className="mt-1 text-xs text-ink-500">{result.score_explanation}</p>
                 )}
                 {result.transcription && (
-                  <p className="mt-2 text-xs text-ink-600">
-                    The model heard: <span className="font-mono">{result.transcription}</span>
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-xs text-ink-600">The model heard:</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {(result.transcription_words && result.transcription_words.length > 0
+                        ? result.transcription_words.map((w, i) => (
+                          <span key={i} className="flex items-baseline gap-1 rounded-md border border-ink-200 bg-ink-50 px-2 py-1">
+                            <span className="font-mono text-sm text-ink-800">{w}</span>
+                            <span className="font-mono text-xs text-accent-700">
+                              {result.transcription_ipa?.[i] ? `/${result.transcription_ipa[i]}/` : '· · ·'}
+                            </span>
+                          </span>
+                        ))
+                        : (
+                          <span className="flex items-baseline gap-1 rounded-md border border-ink-200 bg-ink-50 px-2 py-1">
+                            <span className="font-mono text-sm text-ink-800">{result.transcription}</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

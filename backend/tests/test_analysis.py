@@ -27,7 +27,7 @@ def test_analyze_sync_real_score(client, tone_wav):
     # contract fields
     for k in ["analysis_id", "score_confidence", "transcription", "phonemes",
               "acoustics", "confidence", "limitations", "recommendations",
-              "model_name"]:
+              "model_name", "transcription_words", "transcription_ipa"]:
         assert k in body
     # a real score, if present, is a number in [0,100]
     if body["score"] is not None:
@@ -36,6 +36,11 @@ def test_analyze_sync_real_score(client, tone_wav):
     if body["acoustics"] is not None:
         assert body["acoustics"]["duration_s"] is not None
         assert body["acoustics"]["sample_rate"] is not None
+    # the per-word IPA of the heard transcription, when present, must be
+    # aligned word-by-word (same length as transcription_words)
+    if body["transcription_words"]:
+        assert body["transcription_ipa"] is not None
+        assert len(body["transcription_ipa"]) == len(body["transcription_words"])
 
 
 @requires_models
